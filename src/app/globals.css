@@ -26,9 +26,15 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
 }
 
 /* ---------- the terrarium ---------- */
+/* fixed 300×380 so the jar outline (JAR_PATH) maps 1:1 onto the scene */
+.vessel { position: relative; width: 300px; height: 380px; margin: 0 auto; }
+.shadow {
+  position: absolute; left: 12%; right: 12%; bottom: -12px; height: 22px;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, .7), transparent);
+}
+.glass { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .jar {
-  position: relative; height: 300px; overflow: hidden;
-  border-radius: 14px 14px 20px 20px; border: 1px solid var(--glass);
+  position: absolute; inset: 0; overflow: hidden;
   background: linear-gradient(180deg,
     hsl(205 28% calc(8% + var(--light) * 22%)) 0%,
     hsl(195 20% calc(6% + var(--light) * 14%)) 55%,
@@ -67,7 +73,8 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
   transition: opacity 2.4s ease;
 }
 .ground {
-  position: absolute; left: 0; right: 0; bottom: 0; height: 78px;
+  position: absolute; left: -12px; right: -12px; bottom: 0; height: 92px;
+  border-radius: 50% 50% 0 0 / 20px 20px 0 0; /* soil mounds toward the middle */
   background: linear-gradient(180deg, #1b1a17, #121210);
   border-top: 1px solid rgba(255, 255, 255, .05);
 }
@@ -76,14 +83,10 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
   background: radial-gradient(60% 100% at 50% 100%, rgba(40, 46, 38, .9), transparent 70%);
 }
 .sprout {
-  position: absolute; bottom: 62px; left: 50%; transform: translateX(-50%);
+  position: absolute; bottom: 76px; left: 50%; transform: translateX(-50%);
   width: 120px; height: 120px; pointer-events: none;
 }
 .sprout path { transition: all 2.4s ease }
-.glassline {
-  position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, .055) 46%, transparent 52%);
-}
 
 /* ---------- writing ---------- */
 .write { margin-top: 18px }

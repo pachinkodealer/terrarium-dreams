@@ -13,6 +13,13 @@ interface Weather {
 
 const CALM: Weather = { fog: 0.25, cloud: 0.2, drift: 1, light: 0.35, growth: 0.35 }
 
+// Outline of the jar in a 300×380 box: neck at the top, shoulders curving out
+// to a wide body with rounded base. Clips the scene and draws the glass edge.
+const JAR_PATH =
+  'M114 60 L186 60 L186 84 C186 104 278 100 278 140 L278 342 ' +
+  'C278 360 266 372 248 372 L52 372 C34 372 22 360 22 342 ' +
+  'L22 140 C22 100 114 104 114 84 Z'
+
 // How long written words take to drift away after Enter. Matches .releasing in globals.css.
 const RELEASE_MS = 2600
 
@@ -109,7 +116,9 @@ export function Terrarium() {
     <div className="room" style={vars}>
       <h1 className="title">Terrarium Dreams</h1>
 
-      <div className="jar" aria-hidden>
+      <div className="vessel" aria-hidden>
+      <div className="shadow" />
+      <div className="jar" style={{ clipPath: `path('${JAR_PATH}')` }}>
         <div className="shaft" />
         <div className="mist" />
         <div className="cond" />
@@ -128,7 +137,41 @@ export function Terrarium() {
             style={{ transform: `scale(${0.7 + g * 0.45})`, transformOrigin: '60px 72px' }}
           />
         </svg>
-        <div className="glassline" />
+      </div>
+
+      {/* the glass itself: edge, light on the curves, lip and cork */}
+      <svg className="glass" viewBox="0 0 300 380" fill="none">
+        <defs>
+          <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#fff" stopOpacity="0" />
+            <stop offset=".3" stopColor="#fff" stopOpacity=".22" />
+            <stop offset=".75" stopColor="#fff" stopOpacity=".08" />
+            <stop offset="1" stopColor="#fff" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="cork" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#5a4330" />
+            <stop offset=".45" stopColor="#8a6b4c" />
+            <stop offset="1" stopColor="#4d3a2a" />
+          </linearGradient>
+        </defs>
+
+        <path d={JAR_PATH} stroke="rgba(255,255,255,.15)" strokeWidth="1.5" />
+        {/* light catching the curved glass */}
+        <path d="M40 150 C33 210 33 280 41 340" stroke="url(#sheen)" strokeWidth="6" strokeLinecap="round" />
+        <path d="M262 165 C266 190 266 215 263 236" stroke="rgba(255,255,255,.07)" strokeWidth="3" strokeLinecap="round" />
+        <path d="M128 98 C110 104 72 110 56 122" stroke="rgba(255,255,255,.1)" strokeWidth="2" strokeLinecap="round" />
+
+        {/* lip of the neck */}
+        <rect x="108" y="58" width="84" height="9" rx="4.5" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.2)" />
+        {/* cork */}
+        <path d="M113 18 Q113 12 119 12 L181 12 Q187 12 187 18 L184 60 L116 60 Z" fill="url(#cork)" />
+        <ellipse cx="150" cy="13" rx="35" ry="3.5" fill="#9a7a58" />
+        <g fill="#3e2f22" opacity=".55">
+          <circle cx="128" cy="30" r="1.2" /><circle cx="160" cy="24" r="1" />
+          <circle cx="171" cy="44" r="1.3" /><circle cx="140" cy="50" r="1" />
+          <circle cx="152" cy="37" r=".9" />
+        </g>
+      </svg>
       </div>
 
       <div className="write">
