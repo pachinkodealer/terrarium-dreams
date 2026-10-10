@@ -29,6 +29,10 @@ const MOTES: [number, number, number, number][] = [
   [74, 11, 17, 1.5], [24, 13, 15, 2], [50, 7, 18, 1.5], [82, 3, 13, 2],
 ]
 
+// Keeping a garden by email (a private link back to it) is built but the
+// server side isn't wired yet. Until then the tend line asks only for a name.
+const EMAIL_KEYS_ENABLED = false
+
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
 
 function observe(w: Weather, dwell: number, longPauses: number): string {
@@ -175,12 +179,19 @@ function TerrariumGarden() {
     const value = tend.trim()
     if (!value || sending) return
 
+    if (!EMAIL_KEYS_ENABLED && value.includes('@')) {
+      setTendMsg('Just a name for now. Your garden is kept here, on this device.')
+      return
+    }
+
     if (!value.includes('@')) {
       const n = normalizeName(value)
       if (!n) return
       setName(n)
       setTend('')
-      setTendMsg(`Hello, ${n}. Leave an email any time and we'll send a key to come back to it from anywhere.`)
+      setTendMsg(EMAIL_KEYS_ENABLED
+        ? `Hello, ${n}. Leave an email any time and we'll send a key to come back to it from anywhere.`
+        : `Hello, ${n}. Your garden is kept here, on this device.`)
       return
     }
 
@@ -350,9 +361,13 @@ function TerrariumGarden() {
           ref={tendRef}
           value={tend}
           onChange={e => setTend(e.target.value)}
-          placeholder={name ? 'an email, to keep it anywhere' : 'who tends this garden? a name, or an email'}
-          aria-label="A name for this garden, or an email to keep it"
-          autoComplete="email"
+          placeholder={
+            EMAIL_KEYS_ENABLED
+              ? (name ? 'an email, to keep it anywhere' : 'who tends this garden? a name, or an email')
+              : (name ? 'rename this garden' : 'who tends this garden?')
+          }
+          aria-label={EMAIL_KEYS_ENABLED ? 'A name for this garden, or an email to keep it' : 'A name for this garden'}
+          autoComplete={EMAIL_KEYS_ENABLED ? 'email' : 'given-name'}
           spellCheck={false}
           disabled={sending || !showTend}
           tabIndex={showTend ? 0 : -1}
