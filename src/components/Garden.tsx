@@ -78,10 +78,13 @@ function Shape({ kind, hue }: { kind: PlantKind; hue: string }) {
       )
     case 'moss':
       return (
+        // A soft cushion that has to read against dark soil: taller, brighter, sunlit on top.
         <g>
-          <ellipse cx="0" cy="-3" rx="13" ry="5" fill="#4f7a3d" />
-          <circle cx="-7" cy="-5" r="5" fill="#68934c" /><circle cx="2" cy="-7" r="6" fill="#77a457" />
-          <circle cx="9" cy="-4" r="4.5" fill="#5c8745" /><circle cx="-1" cy="-4" r="3" fill="#8bb866" />
+          <ellipse cx="0" cy="-3" rx="15" ry="6" fill="#5e9147" />
+          <circle cx="-8" cy="-7" r="6.5" fill="#79ad57" /><circle cx="3" cy="-11" r="8" fill="#8cc265" />
+          <circle cx="11" cy="-6" r="5.5" fill="#6fa04f" /><circle cx="-2" cy="-5" r="4" fill="#9fd176" />
+          <circle cx="1" cy="-15" r="3" fill="#b9e08f" /><circle cx="-8" cy="-11" r="2.2" fill="#b9e08f" />
+          <circle cx="11" cy="-10" r="1.8" fill="#c6e8a0" />
         </g>
       )
     case 'fern':
