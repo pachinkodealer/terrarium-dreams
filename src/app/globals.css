@@ -19,7 +19,9 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
 .room {
   --fog: .25; --light: .35; --drift: 1; --cloud: .2;
   width: 100%; max-width: 420px; margin: auto; padding: 28px 20px;
+  animation: arrive 1.4s ease both;
 }
+@keyframes arrive { from { opacity: 0 } to { opacity: 1 } }
 .title {
   font-size: 13px; font-weight: 400; letter-spacing: .22em; text-transform: uppercase;
   color: var(--faint); text-align: center; margin-bottom: 22px;
@@ -28,6 +30,15 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
 /* ---------- the terrarium ---------- */
 /* fixed 300×380 so the jar outline (JAR_PATH) maps 1:1 onto the scene */
 .vessel { position: relative; width: 300px; height: 380px; margin: 0 auto; }
+/* warm green glow the jar sits in — brighter as the light inside rises */
+.halo {
+  position: absolute; inset: -70px -60px -40px; pointer-events: none;
+  background: radial-gradient(closest-side,
+    rgba(150, 200, 150, calc(.08 + var(--light) * .16)),
+    rgba(240, 210, 150, calc(var(--light) * .05)) 55%, transparent);
+  filter: blur(8px);
+  transition: background 2.4s ease;
+}
 .shadow {
   position: absolute; left: 12%; right: 12%; bottom: -12px; height: 22px;
   background: radial-gradient(closest-side, rgba(0, 0, 0, .7), transparent);
@@ -36,16 +47,45 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
 .jar {
   position: absolute; inset: 0; overflow: hidden;
   background: linear-gradient(180deg,
-    hsl(205 28% calc(8% + var(--light) * 22%)) 0%,
-    hsl(195 20% calc(6% + var(--light) * 14%)) 55%,
-    #0a0b0d 100%);
+    hsl(188 30% calc(13% + var(--light) * 26%)) 0%,
+    hsl(170 22% calc(10% + var(--light) * 16%)) 55%,
+    #0c0e0d 100%);
   transition: background 2.4s ease;
 }
 .shaft {
   position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(120% 70% at 68% -10%,
-    rgba(255, 236, 190, calc(var(--light) * .5)), transparent 62%);
+    rgba(255, 236, 190, calc(.12 + var(--light) * .55)), transparent 62%);
   transition: background 2.4s ease;
+}
+
+/* spores drifting up through the glass, brighter in the light */
+.motes { position: absolute; inset: 0; pointer-events: none; opacity: calc(.25 + var(--light) * .75); transition: opacity 2.4s ease; }
+.motes span {
+  position: absolute; bottom: 70px; border-radius: 50%;
+  background: rgba(255, 240, 200, .9); box-shadow: 0 0 6px rgba(255, 230, 170, .8);
+  animation: rise linear infinite;
+}
+@keyframes rise {
+  0%   { transform: translate3d(0, 0, 0); opacity: 0 }
+  12%  { opacity: 1 }
+  85%  { opacity: .8 }
+  100% { transform: translate3d(14px, -250px, 0); opacity: 0 }
+}
+
+/* the garden: each entry is a plant that grows in, then sways */
+.garden { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.plant, .sway { transform-box: fill-box; transform-origin: 50% 100%; }
+.plant.grow { animation: grow 2.2s cubic-bezier(.2, .8, .25, 1) both; }
+@keyframes grow {
+  from { transform: scale(.05, 0); opacity: 0 }
+  30%  { opacity: 1 }
+  to   { transform: scale(1, 1) }
+}
+.sway { animation: sway ease-in-out infinite alternate; }
+@keyframes sway {
+  from { transform: rotate(-2.5deg) }
+  to   { transform: rotate(2.5deg) }
 }
 .mist {
   position: absolute; inset: -20%; pointer-events: none; opacity: var(--fog);
@@ -75,12 +115,12 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
 .ground {
   position: absolute; left: -12px; right: -12px; bottom: 0; height: 92px;
   border-radius: 50% 50% 0 0 / 20px 20px 0 0; /* soil mounds toward the middle */
-  background: linear-gradient(180deg, #1b1a17, #121210);
-  border-top: 1px solid rgba(255, 255, 255, .05);
+  background: linear-gradient(180deg, #2a2219, #17130f);
+  border-top: 1px solid rgba(255, 230, 190, .08);
 }
 .ground::after {
   content: ""; position: absolute; left: 0; right: 0; top: -10px; height: 16px;
-  background: radial-gradient(60% 100% at 50% 100%, rgba(40, 46, 38, .9), transparent 70%);
+  background: radial-gradient(60% 100% at 50% 100%, rgba(60, 80, 50, .7), transparent 70%);
 }
 .sprout {
   position: absolute; bottom: 76px; left: 50%; transform: translateX(-50%);
@@ -120,7 +160,34 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
 }
 .observation.on { opacity: 1; transform: none }
 
+/* ---------- the tag on the cork ---------- */
+.tag { pointer-events: auto; cursor: pointer; outline: none; }
+.tag > g { transform: translate(219px, 89px) rotate(11deg); transition: transform .4s ease; }
+.tag:hover > g, .tag:focus-visible > g { transform: translate(219px, 89px) rotate(4deg); }
+.tag:focus-visible path { stroke: rgba(255, 255, 255, .6); stroke-width: 1.5; }
+.tag-name { font-family: var(--font-hand), cursive; font-size: 15px; fill: #4a3d30; }
+.tag-name.muted { fill: #8a7c68; }
+.tag-sub { font-family: var(--font-hand), cursive; font-size: 11px; fill: #7a6a55; }
+
+/* ---------- who tends this garden ---------- */
+.tend {
+  margin-top: 18px; text-align: center;
+  opacity: 0; transform: translateY(6px); pointer-events: none;
+  transition: opacity 1.4s ease .6s, transform 1.4s ease .6s;
+}
+.tend.on { opacity: 1; transform: none; pointer-events: auto; }
+.tend input {
+  width: 100%; max-width: 320px; padding: 6px 4px; text-align: center;
+  background: transparent; color: var(--ink); border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .14); border-radius: 0;
+  font: inherit; font-size: 16px; /* <16px makes iOS Safari zoom on focus */ outline: none;
+  transition: border-color .3s ease;
+}
+.tend input::placeholder { color: #5f5b52; font-style: italic; }
+.tend input:focus { border-bottom-color: rgba(170, 210, 160, .55); }
+.tend-msg { margin-top: 10px; min-height: 1.5em; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
 @media (prefers-reduced-motion: reduce) {
-  .mist { animation: none }
-  .jar, .shaft, .mist, .cond, .sprout path, .observation { transition: none }
+  .mist, .motes span, .sway, .plant.grow { animation: none }
+  .jar, .shaft, .mist, .cond, .sprout path, .observation, .tend, .halo { transition: none }
 }
