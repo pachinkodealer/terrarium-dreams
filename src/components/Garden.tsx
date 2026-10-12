@@ -132,13 +132,16 @@ function Shape({ kind, hue }: { kind: PlantKind; hue: string }) {
   }
 }
 
-/** The plants, drawn inside the jar. `fresh` is the one just planted, which grows in. */
-export function Garden({ plants, fresh }: { plants: Plant[]; fresh: string | null }) {
+/**
+ * The plants, drawn inside the jar. `dormant` is planted but not yet showing;
+ * `fresh` is the one that has just begun to grow in.
+ */
+export function Garden({ plants, fresh, dormant }: { plants: Plant[]; fresh: string | null; dormant: string | null }) {
   return (
     <svg className="garden" viewBox="0 0 300 380" aria-hidden>
       {plants.map(p => (
         <g key={p.id} transform={`translate(${p.x} ${p.y}) scale(${p.scale})`}>
-          <g className={p.id === fresh ? 'plant grow' : 'plant'}>
+          <g className={p.id === dormant ? 'plant dormant' : p.id === fresh ? 'plant grow' : 'plant'}>
             <g className="sway" style={{ animationDuration: `${p.sway}s`, animationDelay: `-${p.sway / 2}s` }}>
               <Shape kind={p.kind} hue={p.hue} />
             </g>

@@ -16,8 +16,13 @@ const JAR_PATH =
   'C278 360 266 372 248 372 L52 372 C34 372 22 360 22 342 ' +
   'L22 140 C22 100 114 104 114 84 Z'
 
-// How long written words take to drift away after Enter. Matches .releasing in globals.css.
-const RELEASE_MS = 2600
+// The jar takes its time. After Enter, nothing answers until the words have
+// gone and a beat of stillness has passed; then the glass slowly turns, the
+// new plant grows, and only last does the observation arrive.
+const RELEASE_MS = 2600  // words drift away (matches .releasing in globals.css)
+const WEATHER_AT = 4000  // the glass begins to turn (over ~6s, see .jar transitions)
+const PLANT_AT = 6000    // the new plant begins to grow (over ~4.5s, see .plant.grow)
+const OBSERVE_AT = 11500 // the reflection, last of all
 
 // The garden lives in this browser until it's kept by email. Qualities only — no words.
 const STORE_KEY = 'terrarium-dreams:garden:v1'
@@ -53,7 +58,8 @@ function readSavedGarden(): SavedGarden {
       const entries = parseEntries(saved.entries)
       return {
         name: normalizeName(saved.name),
-        weather: parseWeather(saved.weather) ?? entries.at(-1)?.weather ?? CALM,
+        // Latest entry first: if the page closed mid-response, its weather still lands.
+        weather: entries.at(-1)?.weather ?? parseWeather(saved.weather) ?? CALM,
         entries,
       }
     }
@@ -85,6 +91,15 @@ function TerrariumGarden() {
   const [entries, setEntries] = useState<EntryQualities[]>(saved.entries)
   const [name, setName] = useState<string | null>(saved.name)
   const [fresh, setFresh] = useState<string | null>(null)
+  // Planted but not yet grown: kept (so nothing is lost) yet hidden until its moment.
+  const [dormant, setDormant] = useState<string | null>(null)
+  // True from Enter until the reflection arrives.
+  const [settling, setSettling] = useState(false)
+
+  // The current response's pending steps; `finish` lands them all at once if a
+  // new entry arrives before they're done, so nothing gets lost or doubled.
+  const response = useRef<{ timers: number[]; finish: () => void } | null>(null)
+  useEffect(() => () => response.current?.timers.forEach(clearTimeout), [])
 
   // "who tends this garden?" — one line that understands a name or an email.
   const [tend, setTend] = useState('')
@@ -159,20 +174,45 @@ function TerrariumGarden() {
       weather: next,
     }
 
-    // The glass turns and the new plant grows as the words leave; the
-    // observation arrives once they're gone, and the box clears.
+    // A newer entry ends the previous wait: its weather and plant land now.
+    response.current?.finish()
     resetTiming()
+
+    // The entry is kept at once (so closing the page loses nothing), but its
+    // plant stays dormant and the glass stays still until their moment.
     setObservation(null)
     setReleasing(true)
-    setWeather(next)
+    setSettling(true)
     setEntries(prev => [...prev, entry])
-    setFresh(entry.id)
-    window.setTimeout(() => {
-      setText('')
-      setReleasing(false)
-      setObservation(observe(next, dwell, longPauses))
-      textareaRef.current?.focus()
-    }, RELEASE_MS)
+    setDormant(entry.id)
+
+    const reflection = observe(next, dwell, longPauses)
+    const grow = () => { setDormant(d => (d === entry.id ? null : d)); setFresh(entry.id) }
+    const timers = [
+      window.setTimeout(() => {
+        setText('')
+        setReleasing(false)
+        textareaRef.current?.focus()
+      }, RELEASE_MS),
+      window.setTimeout(() => setWeather(next), WEATHER_AT),
+      window.setTimeout(grow, PLANT_AT),
+      window.setTimeout(() => {
+        setObservation(reflection)
+        setSettling(false)
+        response.current = null
+      }, OBSERVE_AT),
+    ]
+    response.current = {
+      timers,
+      // Skip the waiting and the reflection; keep the weather and the plant.
+      finish: () => {
+        timers.forEach(clearTimeout)
+        setWeather(next)
+        grow()
+        setSettling(false)
+        response.current = null
+      },
+    }
   }
 
   async function onTend() {
@@ -268,7 +308,7 @@ function TerrariumGarden() {
             style={{ transform: `scale(${0.7 + g * 0.45})`, transformOrigin: '60px 72px' }}
           />
         </svg>
-        <Garden plants={plants} fresh={fresh} />
+        <Garden plants={plants} fresh={fresh} dormant={dormant} />
       </div>
 
       {/* the glass itself: edge, light on the curves, lip, cork and the tag */}
@@ -345,7 +385,7 @@ function TerrariumGarden() {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); settle() }
           }}
         />
-        <p className="hint">press ⏎ to let it settle</p>
+        <p className="hint">{settling ? 'letting it settle…' : 'press ⏎ to let it settle'}</p>
       </div>
 
       <p className={`observation ${observation ? 'on' : ''}`} aria-live="polite">

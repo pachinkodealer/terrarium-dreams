@@ -37,7 +37,7 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
     rgba(150, 200, 150, calc(.08 + var(--light) * .16)),
     rgba(240, 210, 150, calc(var(--light) * .05)) 55%, transparent);
   filter: blur(8px);
-  transition: background 2.4s ease;
+  transition: background 6s ease;
 }
 .shadow {
   position: absolute; left: 12%; right: 12%; bottom: -12px; height: 22px;
@@ -50,17 +50,17 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
     hsl(188 30% calc(13% + var(--light) * 26%)) 0%,
     hsl(170 22% calc(10% + var(--light) * 16%)) 55%,
     #0c0e0d 100%);
-  transition: background 2.4s ease;
+  transition: background 6s ease;
 }
 .shaft {
   position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(120% 70% at 68% -10%,
     rgba(255, 236, 190, calc(.12 + var(--light) * .55)), transparent 62%);
-  transition: background 2.4s ease;
+  transition: background 6s ease;
 }
 
 /* spores drifting up through the glass, brighter in the light */
-.motes { position: absolute; inset: 0; pointer-events: none; opacity: calc(.25 + var(--light) * .75); transition: opacity 2.4s ease; }
+.motes { position: absolute; inset: 0; pointer-events: none; opacity: calc(.25 + var(--light) * .75); transition: opacity 6s ease; }
 .motes span {
   position: absolute; bottom: 70px; border-radius: 50%;
   background: rgba(255, 240, 200, .9); box-shadow: 0 0 6px rgba(255, 230, 170, .8);
@@ -76,7 +76,9 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
 /* the garden: each entry is a plant that grows in, then sways */
 .garden { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .plant, .sway { transform-box: fill-box; transform-origin: 50% 100%; }
-.plant.grow { animation: grow 2.2s cubic-bezier(.2, .8, .25, 1) both; }
+.plant.grow { animation: grow 4.5s cubic-bezier(.2, .7, .25, 1) both; }
+/* planted, waiting for its moment (matches the grow animation's first frame) */
+.plant.dormant { transform: scale(.05, 0); opacity: 0; }
 @keyframes grow {
   from { transform: scale(.05, 0); opacity: 0 }
   30%  { opacity: 1 }
@@ -95,7 +97,7 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
     radial-gradient(50% 30% at 48% 78%, rgba(226, 235, 240, .36), transparent 72%);
   filter: blur(6px);
   animation: drift calc(26s / var(--drift)) ease-in-out infinite alternate;
-  transition: opacity 2.4s ease;
+  transition: opacity 6s ease;
 }
 @keyframes drift {
   from { transform: translate3d(-5%, 2%, 0) scale(1.04) }
@@ -110,7 +112,7 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
     radial-gradient(2.5px 2.5px at 34% 52%, rgba(255, 255, 255, .35), transparent),
     radial-gradient(1.5px 1.5px at 72% 64%, rgba(255, 255, 255, .4), transparent),
     radial-gradient(2px 2px at 12% 72%, rgba(255, 255, 255, .3), transparent);
-  transition: opacity 2.4s ease;
+  transition: opacity 6s ease;
 }
 .ground {
   position: absolute; left: -12px; right: -12px; bottom: 0; height: 92px;
@@ -126,7 +128,7 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
   position: absolute; bottom: 76px; left: 50%; transform: translateX(-50%);
   width: 120px; height: 120px; pointer-events: none;
 }
-.sprout path { transition: all 2.4s ease }
+.sprout path { transition: all 6s ease }
 
 /* ---------- writing ---------- */
 .write { margin-top: 18px }
