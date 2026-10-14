@@ -136,9 +136,11 @@ function Shape({ kind, hue }: { kind: PlantKind; hue: string }) {
  * The plants, drawn inside the jar. `dormant` is planted but not yet showing;
  * `fresh` is the one that has just begun to grow in.
  */
-export function Garden({ plants, fresh, dormant }: { plants: Plant[]; fresh: string | null; dormant: string | null }) {
+export function Garden({ plants, fresh, dormant, clearing }: {
+  plants: Plant[]; fresh: string | null; dormant: string | null; clearing: boolean
+}) {
   return (
-    <svg className="garden" viewBox="0 0 300 380" aria-hidden>
+    <svg className={clearing ? 'garden clearing' : 'garden'} viewBox="0 0 300 380" aria-hidden>
       {plants.map(p => (
         <g key={p.id} transform={`translate(${p.x} ${p.y}) scale(${p.scale})`}>
           <g className={p.id === dormant ? 'plant dormant' : p.id === fresh ? 'plant grow' : 'plant'}>

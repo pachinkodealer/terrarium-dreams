@@ -38,6 +38,15 @@ const MOTES: [number, number, number, number][] = [
 // server side isn't wired yet. Until then the tend line asks only for a name.
 const EMAIL_KEYS_ENABLED = false
 
+// Clearing the jar can't be undone, so it asks for a deliberate sentence.
+const CLEAR_PHRASE = 'please clear my mind'
+const WILT_MS = 4200 // plants sink back into the soil (matches .garden.clearing)
+
+/** Forgiving about case, spacing and a trailing period — not about the words. */
+function isClearPhrase(raw: string): boolean {
+  return raw.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.!…]+$/, '') === CLEAR_PHRASE
+}
+
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
 
 function observe(w: Weather, dwell: number, longPauses: number): string {
@@ -107,6 +116,13 @@ function TerrariumGarden() {
   const [tendOpen, setTendOpen] = useState(false)
   const [sending, setSending] = useState(false)
   const tendRef = useRef<HTMLInputElement>(null)
+
+  // Clearing the jar: a quiet link opens a line that needs CLEAR_PHRASE typed.
+  const [clearOpen, setClearOpen] = useState(false)
+  const [clearText, setClearText] = useState('')
+  const [clearMsg, setClearMsg] = useState<string | null>(null)
+  const [clearing, setClearing] = useState(false)
+  const clearRef = useRef<HTMLInputElement>(null)
 
   // Timing lives in refs — it must never cause a re-render while someone writes.
   const focusAt = useRef<number | null>(null)
@@ -266,6 +282,50 @@ function TerrariumGarden() {
     requestAnimationFrame(() => tendRef.current?.focus())
   }
 
+  function openClear() {
+    setClearOpen(true)
+    setClearMsg(null)
+    requestAnimationFrame(() => clearRef.current?.focus())
+  }
+
+  function closeClear() {
+    setClearOpen(false)
+    setClearText('')
+    setClearMsg(null)
+  }
+
+  function clearJar() {
+    if (clearing) return
+    if (!isClearPhrase(clearText)) {
+      setClearMsg(`The words need to match: ${CLEAR_PHRASE}`)
+      return
+    }
+
+    // Anything still settling is let go too: no plant or reflection lands after this.
+    response.current?.timers.forEach(clearTimeout)
+    response.current = null
+    resetTiming()
+    setText('')
+    setReleasing(false)
+    setSettling(false)
+    setObservation(null)
+    setClearOpen(false)
+    setClearText('')
+    setClearMsg(null)
+
+    // The plants sink back into the soil slowly; then the jar is empty and calm.
+    // The name on the tag stays — clearing your mind isn't giving the jar away.
+    setClearing(true)
+    window.setTimeout(() => {
+      setEntries([])
+      setFresh(null)
+      setDormant(null)
+      setWeather(CALM)
+      setClearing(false)
+      setObservation('the jar is clear.')
+    }, WILT_MS)
+  }
+
   // The seedling in the middle grows with the garden's age.
   const g = clamp(0.3 + entries.length * 0.05, 0.3, 1)
   const showTend = tendOpen || entries.length > 0 || name != null
@@ -308,7 +368,7 @@ function TerrariumGarden() {
             style={{ transform: `scale(${0.7 + g * 0.45})`, transformOrigin: '60px 72px' }}
           />
         </svg>
-        <Garden plants={plants} fresh={fresh} dormant={dormant} />
+        <Garden plants={plants} fresh={fresh} dormant={dormant} clearing={clearing} />
       </div>
 
       {/* the glass itself: edge, light on the curves, lip, cork and the tag */}
@@ -375,7 +435,7 @@ function TerrariumGarden() {
         <textarea
           ref={textareaRef}
           value={text}
-          readOnly={releasing}
+          readOnly={releasing || clearing}
           className={releasing ? 'releasing' : undefined}
           placeholder="a dream, or what's on your mind…"
           aria-label="Write a dream or what's on your mind"
@@ -414,6 +474,30 @@ function TerrariumGarden() {
         />
         <p className="tend-msg" aria-live="polite">{sending ? 'sending a key…' : tendMsg ?? ' '}</p>
       </form>
+
+      {entries.length > 0 && !clearing && (
+        clearOpen ? (
+          <form className="clear" onSubmit={e => { e.preventDefault(); clearJar() }}>
+            <p className="clear-ask">
+              to clear the jar, type: <span className="clear-phrase">{CLEAR_PHRASE}</span>
+            </p>
+            <input
+              ref={clearRef}
+              value={clearText}
+              onChange={e => { setClearText(e.target.value); setClearMsg(null) }}
+              onKeyDown={e => { if (e.key === 'Escape') closeClear() }}
+              aria-label={`To clear the jar, type: ${CLEAR_PHRASE}`}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+            />
+            <p className="clear-msg" aria-live="polite">{clearMsg ?? ' '}</p>
+            <button type="button" className="clear-link" onClick={closeClear}>never mind</button>
+          </form>
+        ) : (
+          <button type="button" className="clear-link" onClick={openClear}>clear the jar</button>
+        )
+      )}
     </div>
   )
 }
