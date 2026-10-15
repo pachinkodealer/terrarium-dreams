@@ -6,6 +6,8 @@ import {
   type EntryQualities, type Weather,
 } from '@/lib/jar'
 import { Garden, derivePlants } from '@/components/Garden'
+import { StoneLayer, StoneViewer, placeStones } from '@/components/Stones'
+import type { DreamSymbol } from '@/lib/jar'
 
 const CALM: Weather = { fog: 0.25, cloud: 0.2, drift: 1, light: 0.4, growth: 0.35 }
 
@@ -23,6 +25,7 @@ const RELEASE_MS = 2600  // words drift away (matches .releasing in globals.css)
 const WEATHER_AT = 4000  // the glass begins to turn (over ~6s, see .jar transitions)
 const PLANT_AT = 6000    // the new plant begins to grow (over ~4.5s, see .plant.grow)
 const OBSERVE_AT = 11500 // the reflection, last of all
+const STONE_AT = 8000    // a symbol, if one was made, settles after its plant has begun
 
 // The garden lives in this browser until it's kept by email. Qualities only — no words.
 const STORE_KEY = 'terrarium-dreams:garden:v1'
@@ -124,6 +127,12 @@ function TerrariumGarden() {
   const [clearing, setClearing] = useState(false)
   const clearRef = useRef<HTMLInputElement>(null)
 
+  // Symbols: a stone just set down glints; one can be lifted up to look at.
+  const [glint, setGlint] = useState<string | null>(null)
+  const [openStone, setOpenStone] = useState<string | null>(null)
+  // Set only if an entry suggests the writer may be in crisis.
+  const [care, setCare] = useState(false)
+
   // Timing lives in refs — it must never cause a re-render while someone writes.
   const focusAt = useRef<number | null>(null)
   const firstInput = useRef<number | null>(null)
@@ -138,6 +147,39 @@ function TerrariumGarden() {
   }, [name, weather, entries])
 
   const plants = useMemo(() => derivePlants(entries), [entries])
+  const stones = useMemo(() => {
+    const symbols = new Map<string, DreamSymbol>()
+    for (const e of entries) if (e.symbol) symbols.set(e.id, e.symbol)
+    return placeStones(plants, symbols)
+  }, [entries, plants])
+  const viewing = openStone ? stones.find(s => s.id === openStone)?.symbol ?? null : null
+
+  /**
+   * The words are sent once to be read for a metaphor, and kept nowhere. If a
+   * symbol comes back, its stone is set down only after the entry's plant has
+   * begun to grow — never before, however fast the reading is.
+   */
+  function readForSymbol(entryId: string, words: string, startedAt: number, manner: {
+    hesitation: number; dwell: number; longPauses: number; deleteRatio: number
+  }) {
+    fetch('/api/reflect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: words, manner }),
+    })
+      .then(res => (res.ok ? res.json() : null))
+      .then((data: { symbol?: DreamSymbol | null; care?: boolean } | null) => {
+        if (data?.care) setCare(true)
+        const symbol = data?.symbol
+        if (!symbol) return // silence: most entries leave nothing
+        const wait = Math.max(0, STONE_AT - (Date.now() - startedAt))
+        window.setTimeout(() => {
+          setEntries(prev => prev.map(e => (e.id === entryId ? { ...e, symbol } : e)))
+          setGlint(entryId)
+        }, wait)
+      })
+      .catch(() => { /* offline or not switched on: the jar simply stays quiet */ })
+  }
 
   function resetTiming() {
     focusAt.current = null
@@ -201,6 +243,8 @@ function TerrariumGarden() {
     setSettling(true)
     setEntries(prev => [...prev, entry])
     setDormant(entry.id)
+    setCare(false)
+    readForSymbol(entry.id, written, now, { hesitation, dwell, longPauses, deleteRatio })
 
     const reflection = observe(next, dwell, longPauses)
     const grow = () => { setDormant(d => (d === entry.id ? null : d)); setFresh(entry.id) }
@@ -312,6 +356,9 @@ function TerrariumGarden() {
     setClearOpen(false)
     setClearText('')
     setClearMsg(null)
+    setOpenStone(null)
+    setGlint(null)
+    setCare(false)
 
     // The plants sink back into the soil slowly; then the jar is empty and calm.
     // The name on the tag stays — clearing your mind isn't giving the jar away.
@@ -370,6 +417,8 @@ function TerrariumGarden() {
         </svg>
         <Garden plants={plants} fresh={fresh} dormant={dormant} clearing={clearing} />
       </div>
+
+      <StoneLayer stones={stones} hidden={dormant} glint={glint} onOpen={setOpenStone} />
 
       {/* the glass itself: edge, light on the curves, lip, cork and the tag */}
       <svg className="glass" viewBox="0 0 300 380" fill="none">
@@ -446,7 +495,18 @@ function TerrariumGarden() {
           }}
         />
         <p className="hint">{settling ? 'letting it settle…' : 'press ⏎ to let it settle'}</p>
+        <p className="privacy">your words are read once, for a symbol, and never kept</p>
       </div>
+
+      {care && (
+        <p className="care" role="note">
+          If you&apos;re carrying something heavy right now, you don&apos;t have to hold it alone.
+          In the US, call or text <a href="tel:988">988</a>; anywhere else,{' '}
+          <a href="https://findahelpline.com" target="_blank" rel="noopener noreferrer">find a line near you</a>.
+        </p>
+      )}
+
+      {viewing && <StoneViewer symbol={viewing} onClose={() => setOpenStone(null)} />}
 
       <p className={`observation ${observation ? 'on' : ''}`} aria-live="polite">
         {observation ?? ' '}
