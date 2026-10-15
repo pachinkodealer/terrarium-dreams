@@ -21,7 +21,9 @@ When you do make a symbol:
 
 Separately, set "care" to true only if the entry suggests the writer may be at risk of harming themselves or is in crisis. In that case do not make a symbol.
 
-You will also be told how the entry was written — hesitation, rewriting, the pause before letting go. Let that inform the metaphor if it matters; never mention it.`
+You will also be told how the entry was written — hesitation, rewriting, the pause before letting go. Let that inform the metaphor if it matters; never mention it.
+
+Sometimes, after an entry, the glass fogs into a symmetrical inkblot. Its shape is made only from how they wrote, never from what they said, and they are asked what they see in it. When you are given what they saw, read it the way a Rorschach is read: as projection. What someone finds in a formless shape says something about what they are carrying — whether they see a whole thing or a fragment, something moving or still, alone or paired, threatening or tender. These answers are short ("a moth", "two people not quite touching"). Give them a symbol more readily than entries, unless the answer is empty, dismissive or literal ("nothing", "a blot", "idk"), which gets silence. The symbol is for what the seeing reveals, not a drawing of the thing seen. Here you are told how long they looked before answering; that hesitation matters in a reading like this, but never mention it either.`
 
 // Strict JSON schema for structured output. Bounds (stroke count, coordinate
 // ranges) are enforced afterwards by parseSymbol rather than in the schema.
@@ -63,9 +65,14 @@ export interface Reading {
   care: boolean
 }
 
-function describeManner(m: Manner): string {
+/** An entry written into the jar, or what was seen in the blot on its glass. */
+export type ReadingKind = 'entry' | 'seen'
+
+function describeManner(m: Manner, kind: ReadingKind): string {
   const parts = [
-    m.hesitation > 5 ? 'waited a long time before starting' : m.hesitation > 1.5 ? 'paused before starting' : 'began at once',
+    kind === 'seen'
+      ? (m.hesitation > 12 ? 'looked a long while before answering' : m.hesitation > 4 ? 'looked for a moment before answering' : 'answered almost at once')
+      : (m.hesitation > 5 ? 'waited a long time before starting' : m.hesitation > 1.5 ? 'paused before starting' : 'began at once'),
     m.longPauses > 2 ? 'stopped several times while writing' : m.longPauses > 0 ? 'stopped once or twice' : 'wrote in one breath',
     m.deleteRatio > 0.12 ? 'rewrote a lot' : m.deleteRatio > 0.03 ? 'reworked a little' : 'left it as written',
     m.dwell > 5 ? 'sat with it before letting go' : 'let go quickly',
@@ -80,7 +87,7 @@ export function reflectionEnabled(): boolean {
 }
 
 /** One read of one entry. Returns silence on any refusal, malformed output or error. */
-export async function readEntry(text: string, manner: Manner): Promise<Reading> {
+export async function readEntry(text: string, manner: Manner, kind: ReadingKind = 'entry'): Promise<Reading> {
   client ??= new Anthropic()
 
   const response = await client.beta.messages.create({
@@ -93,7 +100,9 @@ export async function readEntry(text: string, manner: Manner): Promise<Reading> 
     output_config: { format: { type: 'json_schema', schema: SCHEMA } },
     messages: [{
       role: 'user',
-      content: `How it was written: ${describeManner(manner)}.\n\nThe entry:\n<entry>\n${text}\n</entry>`,
+      content: kind === 'seen'
+        ? `How they answered: ${describeManner(manner, kind)}.\n\nWhat they saw in the blot:\n<seen>\n${text}\n</seen>`
+        : `How it was written: ${describeManner(manner, kind)}.\n\nThe entry:\n<entry>\n${text}\n</entry>`,
     }],
   })
 

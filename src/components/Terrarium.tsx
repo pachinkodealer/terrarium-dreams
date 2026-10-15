@@ -7,6 +7,7 @@ import {
 } from '@/lib/jar'
 import { Garden, derivePlants } from '@/components/Garden'
 import { StoneLayer, StoneViewer, placeStones } from '@/components/Stones'
+import { BlotMark, blotFor, offersBlot, type BlotShape } from '@/components/Blot'
 import type { DreamSymbol } from '@/lib/jar'
 
 const CALM: Weather = { fog: 0.25, cloud: 0.2, drift: 1, light: 0.4, growth: 0.35 }
@@ -26,6 +27,13 @@ const WEATHER_AT = 4000  // the glass begins to turn (over ~6s, see .jar transit
 const PLANT_AT = 6000    // the new plant begins to grow (over ~4.5s, see .plant.grow)
 const OBSERVE_AT = 11500 // the reflection, last of all
 const STONE_AT = 8000    // a symbol, if one was made, settles after its plant has begun
+
+// Now and then, well after the reflection, the glass fogs into a blot and asks
+// what you see in it. Answering lets it dissolve; so does ignoring it.
+const BLOT_AT = 16000      // the fog starts to gather (forms over ~5s, see .blot-glass)
+const BLOT_ASK_MS = 4000   // the question comes once the shape has mostly formed
+const BLOT_FADE_MS = 3200  // the glass clears (matches .blot-glass.fading)
+const SEEN_STONE_MS = 5500 // sea glass, if any, settles after the glass has cleared
 
 // The garden lives in this browser until it's kept by email. Qualities only — no words.
 const STORE_KEY = 'terrarium-dreams:garden:v1'
@@ -133,6 +141,16 @@ function TerrariumGarden() {
   // Set only if an entry suggests the writer may be in crisis.
   const [care, setCare] = useState(false)
 
+  // The blot on the glass, and the one line that answers it.
+  const [blot, setBlot] = useState<{ entryId: string; shape: BlotShape; asking: boolean; fading: boolean } | null>(null)
+  const [seenText, setSeenText] = useState('')
+  const [seenReleasing, setSeenReleasing] = useState(false)
+  const blotTimers = useRef<number[]>([])
+  useEffect(() => () => blotTimers.current.forEach(clearTimeout), [])
+  const sinceBlot = useRef(Infinity) // entries since the glass last clouded
+  // How long they looked before answering matters, as it does in a Rorschach.
+  const seenTiming = useRef({ shownAt: 0, first: null as number | null, last: null as number | null, gaps: [] as number[], deletions: 0 })
+
   // Timing lives in refs — it must never cause a re-render while someone writes.
   const focusAt = useRef<number | null>(null)
   const firstInput = useRef<number | null>(null)
@@ -147,38 +165,89 @@ function TerrariumGarden() {
   }, [name, weather, entries])
 
   const plants = useMemo(() => derivePlants(entries), [entries])
-  const stones = useMemo(() => {
-    const symbols = new Map<string, DreamSymbol>()
-    for (const e of entries) if (e.symbol) symbols.set(e.id, e.symbol)
-    return placeStones(plants, symbols)
-  }, [entries, plants])
-  const viewing = openStone ? stones.find(s => s.id === openStone)?.symbol ?? null : null
+  const stones = useMemo(() => placeStones(plants, new Map(entries.map(e => [e.id, e]))), [entries, plants])
+  const viewing = openStone ? stones.find(s => s.id === openStone) ?? null : null
+  const viewingEntry = viewing?.seen ? entries.find(e => e.id === viewing.entryId) : undefined
 
   /**
    * The words are sent once to be read for a metaphor, and kept nowhere. If a
-   * symbol comes back, its stone is set down only after the entry's plant has
-   * begun to grow — never before, however fast the reading is.
+   * symbol comes back it's set down no sooner than `landAt` after `startedAt`,
+   * however fast the reading is: an entry's stone only after its plant has
+   * begun to grow, sea glass only after the glass has cleared.
    */
-  function readForSymbol(entryId: string, words: string, startedAt: number, manner: {
+  function readForSymbol(kind: 'entry' | 'seen', entryId: string, words: string, startedAt: number, landAt: number, manner: {
     hesitation: number; dwell: number; longPauses: number; deleteRatio: number
   }) {
     fetch('/api/reflect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: words, manner }),
+      body: JSON.stringify({ text: words, manner, kind }),
     })
       .then(res => (res.ok ? res.json() : null))
       .then((data: { symbol?: DreamSymbol | null; care?: boolean } | null) => {
         if (data?.care) setCare(true)
         const symbol = data?.symbol
         if (!symbol) return // silence: most entries leave nothing
-        const wait = Math.max(0, STONE_AT - (Date.now() - startedAt))
+        const wait = Math.max(0, landAt - (Date.now() - startedAt))
         window.setTimeout(() => {
-          setEntries(prev => prev.map(e => (e.id === entryId ? { ...e, symbol } : e)))
-          setGlint(entryId)
+          setEntries(prev => prev.map(e => (e.id !== entryId ? e : kind === 'seen' ? { ...e, seen: symbol } : { ...e, symbol })))
+          setGlint(kind === 'seen' ? `${entryId}:seen` : entryId)
         }, wait)
       })
       .catch(() => { /* offline or not switched on: the jar simply stays quiet */ })
+  }
+
+  function showBlot(entry: EntryQualities) {
+    blotTimers.current.forEach(clearTimeout)
+    sinceBlot.current = 0
+    seenTiming.current = { shownAt: Date.now(), first: null, last: null, gaps: [], deletions: 0 }
+    setSeenText('')
+    setSeenReleasing(false)
+    setBlot({ entryId: entry.id, shape: blotFor(entry), asking: false, fading: false })
+    blotTimers.current = [window.setTimeout(
+      () => setBlot(b => (b && b.entryId === entry.id && !b.fading ? { ...b, asking: true } : b)),
+      BLOT_ASK_MS,
+    )]
+  }
+
+  /** The glass clears slowly, answered or not. */
+  function fadeBlot() {
+    blotTimers.current.forEach(clearTimeout)
+    setBlot(b => (b && !b.fading ? { ...b, asking: false, fading: true } : b))
+    blotTimers.current = [window.setTimeout(() => {
+      setBlot(null)
+      setSeenText('')
+      setSeenReleasing(false)
+    }, BLOT_FADE_MS)]
+  }
+
+  function onSeenInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const now = Date.now()
+    const t = seenTiming.current
+    if ((e.nativeEvent as InputEvent).inputType?.startsWith('delete')) t.deletions += 1
+    if (t.first == null) t.first = now
+    else if (t.last != null) t.gaps.push(now - t.last)
+    t.last = now
+    setSeenText(e.currentTarget.value)
+  }
+
+  function answerBlot() {
+    const seen = seenText.trim()
+    if (!blot || blot.fading || seen.length < 2) return
+    const now = Date.now()
+    const t = seenTiming.current
+    const manner = {
+      hesitation: ((t.first ?? now) - t.shownAt) / 1000,
+      dwell: (now - (t.last ?? now)) / 1000,
+      longPauses: t.gaps.filter(g => g > 1400).length,
+      deleteRatio: t.deletions / Math.max(seen.length, 1),
+    }
+    // Like an entry: what was seen fades with the fog and is kept nowhere.
+    setSeenReleasing(true)
+    setObservation(null)
+    fadeBlot()
+    blotTimers.current.push(window.setTimeout(() => setObservation('the glass clears.'), BLOT_FADE_MS + 1400))
+    readForSymbol('seen', blot.entryId, seen, now, SEEN_STONE_MS, manner)
   }
 
   function resetTiming() {
@@ -200,6 +269,8 @@ function TerrariumGarden() {
     else if (lastInput.current != null) gaps.current.push(now - lastInput.current)
     lastInput.current = now
     setText(e.currentTarget.value)
+    // Starting something new lets an unanswered blot go.
+    if (blot && !blot.fading) fadeBlot()
   }
 
   function settle() {
@@ -244,11 +315,15 @@ function TerrariumGarden() {
     setEntries(prev => [...prev, entry])
     setDormant(entry.id)
     setCare(false)
-    readForSymbol(entry.id, written, now, { hesitation, dwell, longPauses, deleteRatio })
+    readForSymbol('entry', entry.id, written, now, STONE_AT, { hesitation, dwell, longPauses, deleteRatio })
+
+    sinceBlot.current += 1
+    const clouds = offersBlot(entry, entries.length + 1, sinceBlot.current)
 
     const reflection = observe(next, dwell, longPauses)
     const grow = () => { setDormant(d => (d === entry.id ? null : d)); setFresh(entry.id) }
     const timers = [
+      ...(clouds ? [window.setTimeout(() => { showBlot(entry); response.current = null }, BLOT_AT)] : []),
       window.setTimeout(() => {
         setText('')
         setReleasing(false)
@@ -259,7 +334,8 @@ function TerrariumGarden() {
       window.setTimeout(() => {
         setObservation(reflection)
         setSettling(false)
-        response.current = null
+        // keep the blot's timer cancellable by a newer entry until it fires
+        if (!clouds) response.current = null
       }, OBSERVE_AT),
     ]
     response.current = {
@@ -359,6 +435,12 @@ function TerrariumGarden() {
     setOpenStone(null)
     setGlint(null)
     setCare(false)
+    blotTimers.current.forEach(clearTimeout)
+    blotTimers.current = []
+    setBlot(null)
+    setSeenText('')
+    setSeenReleasing(false)
+    sinceBlot.current = Infinity
 
     // The plants sink back into the soil slowly; then the jar is empty and calm.
     // The name on the tag stays — clearing your mind isn't giving the jar away.
@@ -419,6 +501,9 @@ function TerrariumGarden() {
       </div>
 
       <StoneLayer stones={stones} hidden={dormant} glint={glint} onOpen={setOpenStone} />
+
+      {/* breath on the glass, folded into a shape */}
+      {blot && <BlotMark shape={blot.shape} className={blot.fading ? 'blot-glass fading' : 'blot-glass'} />}
 
       {/* the glass itself: edge, light on the curves, lip, cork and the tag */}
       <svg className="glass" viewBox="0 0 300 380" fill="none">
@@ -506,11 +591,37 @@ function TerrariumGarden() {
         </p>
       )}
 
-      {viewing && <StoneViewer symbol={viewing} onClose={() => setOpenStone(null)} />}
+      {viewing && (
+        <StoneViewer
+          symbol={viewing.symbol}
+          blot={viewingEntry ? blotFor(viewingEntry) : undefined}
+          onClose={() => setOpenStone(null)}
+        />
+      )}
 
       <p className={`observation ${observation ? 'on' : ''}`} aria-live="polite">
         {observation ?? ' '}
       </p>
+
+      {blot && (
+        <form className={`seen ${blot.asking || seenReleasing ? 'on' : ''}`} onSubmit={e => { e.preventDefault(); answerBlot() }}>
+          <p className="seen-ask">the glass has fogged into a shape. what do you see in it?</p>
+          <input
+            value={seenText}
+            onChange={onSeenInput}
+            onKeyDown={e => { if (e.key === 'Escape') fadeBlot() }}
+            readOnly={blot.fading}
+            className={seenReleasing ? 'releasing' : undefined}
+            tabIndex={blot.asking ? 0 : -1}
+            aria-label="What do you see in the shape on the glass?"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {!blot.fading && (
+            <button type="button" className="clear-link" onClick={fadeBlot}>let it fade</button>
+          )}
+        </form>
+      )}
 
       <form
         className={`tend ${showTend ? 'on' : ''}`}

@@ -46,6 +46,7 @@ export interface EntryQualities {
   length: number       // characters given
   weather: Weather
   symbol?: DreamSymbol // left by some entries, never most
+  seen?: DreamSymbol   // what they saw in the entry's blot, read as a symbol
 }
 
 export const MAX_ENTRIES_PER_SAVE = 200
@@ -127,11 +128,13 @@ export function parseEntry(raw: unknown): EntryQualities | null {
   if (!weather || hesitation == null || dwell == null || longPauses == null ||
       medianGap == null || deleteRatio == null || length == null) return null
   const symbol = parseSymbol(e.symbol)
+  const seen = parseSymbol(e.seen)
   return {
     id: e.id, writtenAt: new Date(at).toISOString(), weather,
     hesitation, dwell, longPauses: Math.round(longPauses), medianGap, deleteRatio,
     length: Math.round(length),
     ...(symbol ? { symbol } : {}),
+    ...(seen ? { seen } : {}),
   }
 }
 

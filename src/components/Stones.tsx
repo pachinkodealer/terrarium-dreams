@@ -1,4 +1,5 @@
-import type { DreamSymbol, InkTone, StoneTone, SymbolStroke } from '@/lib/jar'
+import type { DreamSymbol, EntryQualities, InkTone, StoneTone, SymbolStroke } from '@/lib/jar'
+import { BlotMark, type BlotShape } from '@/components/Blot'
 import { soilY, type Plant } from '@/components/Garden'
 
 const STONE: Record<StoneTone, [string, string]> = {
@@ -44,15 +45,28 @@ export function SymbolMark({ symbol, width = 2.6, color }: { symbol: DreamSymbol
   return <g>{symbol.strokes.map((s, i) => <Stroke key={i} s={s} ink={ink} width={width} />)}</g>
 }
 
-export interface PlacedStone { id: string; symbol: DreamSymbol; x: number; y: number }
+export interface PlacedStone { id: string; entryId: string; seen: boolean; symbol: DreamSymbol; x: number; y: number }
 
-/** Each symbol rests on the soil just in front of the plant its entry grew. */
-export function placeStones(plants: Plant[], symbols: Map<string, DreamSymbol>): PlacedStone[] {
+/**
+ * Each symbol rests on the soil just in front of the plant its entry grew.
+ * What was seen in that entry's blot rests on the plant's other side.
+ */
+export function placeStones(plants: Plant[], byId: Map<string, EntryQualities>): PlacedStone[] {
   return plants.flatMap(p => {
-    const symbol = symbols.get(p.id)
-    if (!symbol) return []
-    const x = Math.max(44, Math.min(256, p.x + (p.x < 150 ? 13 : -13)))
-    return [{ id: p.id, symbol, x, y: soilY(x) + 9 }]
+    const e = byId.get(p.id)
+    if (!e) return []
+    const toward = p.x < 150 ? 1 : -1
+    const at = (dx: number) => Math.max(44, Math.min(256, p.x + dx))
+    const placed: PlacedStone[] = []
+    if (e.symbol) {
+      const x = at(13 * toward)
+      placed.push({ id: p.id, entryId: p.id, seen: false, symbol: e.symbol, x, y: soilY(x) + 9 })
+    }
+    if (e.seen) {
+      const x = at(-12 * toward)
+      placed.push({ id: `${p.id}:seen`, entryId: p.id, seen: true, symbol: e.seen, x, y: soilY(x) + 10 })
+    }
+    return placed
   })
 }
 
@@ -62,7 +76,7 @@ export function StoneLayer({ stones, hidden, glint, onOpen }: {
 }) {
   return (
     <svg className="stones" viewBox="0 0 300 380">
-      {stones.filter(s => s.id !== hidden).map(s => {
+      {stones.filter(s => s.entryId !== hidden).map(s => {
         const [light, dark] = STONE[s.symbol.stone]
         return (
           // Position lives on the outer group: the inner one's CSS animation
@@ -71,16 +85,32 @@ export function StoneLayer({ stones, hidden, glint, onOpen }: {
           <g
             className={s.id === glint ? 'stone glint' : 'stone'}
             role="button" tabIndex={0}
-            aria-label={`A stone marked "${s.symbol.name}". Look closer`}
+            aria-label={s.seen
+              ? `Sea glass: what you saw, "${s.symbol.name}". Look closer`
+              : `A stone marked "${s.symbol.name}". Look closer`}
             onClick={() => onOpen(s.id)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(s.id) } }}
           >
-            <ellipse cx="0" cy="4" rx="11" ry="3" fill="rgba(0,0,0,.45)" />
-            <ellipse cx="0" cy="0" rx="10.5" ry="7.5" fill={dark} />
-            <ellipse cx="-1" cy="-1.2" rx="9.2" ry="6" fill={light} />
-            <g transform="translate(-6.5 -5.2) scale(.13 .104)">
-              <SymbolMark symbol={s.symbol} width={7} />
-            </g>
+            {s.seen ? (
+              // sea glass: smaller, rounder, the light coming through it
+              <>
+                <ellipse cx="0" cy="3.5" rx="9" ry="2.6" fill="rgba(0,0,0,.4)" />
+                <ellipse cx="0" cy="0" rx="8.6" ry="6.6" fill={light} fillOpacity=".55" stroke="rgba(235,245,240,.55)" strokeWidth=".8" />
+                <ellipse cx="-2.6" cy="-2.6" rx="3" ry="1.4" fill="rgba(255,255,255,.35)" />
+                <g transform="translate(-5.4 -4.6) scale(.108 .092)">
+                  <SymbolMark symbol={s.symbol} width={7} />
+                </g>
+              </>
+            ) : (
+              <>
+                <ellipse cx="0" cy="4" rx="11" ry="3" fill="rgba(0,0,0,.45)" />
+                <ellipse cx="0" cy="0" rx="10.5" ry="7.5" fill={dark} />
+                <ellipse cx="-1" cy="-1.2" rx="9.2" ry="6" fill={light} />
+                <g transform="translate(-6.5 -5.2) scale(.13 .104)">
+                  <SymbolMark symbol={s.symbol} width={7} />
+                </g>
+              </>
+            )}
             <circle className="stone-hit" cx="0" cy="0" r="16" fill="transparent" />
           </g>
           </g>
@@ -90,8 +120,11 @@ export function StoneLayer({ stones, hidden, glint, onOpen }: {
   )
 }
 
-/** Holding a stone up to the light: the symbol at full size, and its name. */
-export function StoneViewer({ symbol, onClose }: { symbol: DreamSymbol; onClose: () => void }) {
+/**
+ * Holding a stone up to the light: the symbol at full size, and its name. For
+ * sea glass, the blot it came from hangs faintly behind it.
+ */
+export function StoneViewer({ symbol, blot, onClose }: { symbol: DreamSymbol; blot?: BlotShape; onClose: () => void }) {
   const [light, dark] = STONE[symbol.stone]
   const id = `face-${symbol.stone}`
   return (
@@ -101,7 +134,9 @@ export function StoneViewer({ symbol, onClose }: { symbol: DreamSymbol; onClose:
       onKeyDown={e => { if (e.key === 'Escape') onClose() }}
     >
       <div className="viewer-card" onClick={e => e.stopPropagation()}>
-        <svg viewBox="0 0 100 100" className="viewer-stone" aria-hidden>
+        <div className="viewer-face">
+        {blot && <BlotMark shape={blot} className="viewer-blot" />}
+        <svg viewBox="0 0 100 100" className={blot ? 'viewer-stone glassy' : 'viewer-stone'} aria-hidden>
           <defs>
             <radialGradient id={id} cx="38%" cy="32%" r="75%">
               <stop offset="0" stopColor={light} />
@@ -116,7 +151,9 @@ export function StoneViewer({ symbol, onClose }: { symbol: DreamSymbol; onClose:
           </g>
           <SymbolMark symbol={symbol} width={2.4} />
         </svg>
+        </div>
         <p className="viewer-name">{symbol.name}</p>
+        {blot && <p className="viewer-sub">what you saw in the glass</p>}
         <button type="button" className="clear-link" onClick={onClose} autoFocus>set it back down</button>
       </div>
     </div>

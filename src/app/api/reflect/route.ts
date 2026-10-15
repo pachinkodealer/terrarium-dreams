@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    return Response.json(await readEntry(text, manner))
+    return Response.json(await readEntry(text, manner, body.kind === 'seen' ? 'seen' : 'entry'))
   } catch (err) {
     // Log only the kind of failure — never the request, which holds the words.
     const status = err instanceof Anthropic.APIError ? err.status : 'unknown'
